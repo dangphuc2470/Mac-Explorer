@@ -167,6 +167,7 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
   private var paneReadEntry: FileEntry?
   private var paneReadTask: Task<NativeFilePreview, Error>?
   private var panePreview: (FileEntry, NativeFilePreview)?
+  private let typeahead = NativeTypeahead()
 
   init(initial: URL, defaults: UserDefaults) {
     self.defaults = defaults; places = QuickAccessState(defaults: defaults); tabs = [BrowserTab(history: [initial])]
@@ -373,9 +374,11 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
     table.renameSelection = { [weak self] in self?.renameSelected() }; collection.renameSelection = table.renameSelection
     table.trashSelection = { [weak self] in self?.trashSelected() }; collection.trashSelection = table.trashSelection
     table.showContext = { [weak self] in self?.showContext($0) }; collection.showContext = table.showContext
+    table.onTypeahead = { [weak self] in self?.handleTypeahead($0) ?? false }; collection.onTypeahead = table.onTypeahead
   }
 
   func layoutChrome() {
+    if let window = view.window { TrafficLightAlignment.apply(to: window) }
     let width = view.bounds.width, height = view.bounds.height
     let sidebarWidth: CGFloat = navigationPane ? (width <= 900 ? 175 : width <= 1100 ? 185 : 208) : 0
     let paneWidth: CGFloat = paneMode.isEmpty ? 0 : (width <= 900 ? 242 : 276)
@@ -750,6 +753,7 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
       tabs[activeTab].index = tabs[activeTab].history.count - 1
       prepareLocationState(state)
     }
+    collection.clearExpandedNames()
     operationError = nil; needsFullDiskAccess = false; search.stringValue = ""; searchActive = false; virtualLocation = ""; restoreView(target, touch: true); reload()
   }
   @objc func reload() {
@@ -763,6 +767,8 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
     automaticRead?.cancel(); automaticRead = nil; refreshWork?.cancel(); refreshWork = nil; refreshPending = false
     directoryWatcher.watch(directory.isFileURL && !searchActive ? directory : nil) { [weak self] in self?.scheduleAutomaticRefresh() }
     cancelInlineRename()
+    typeahead.reset()
+    collection.clearExpandedNames()
     ExplorerMenu.dismiss(); generation += 1; queryGeneration += 1; loadTask?.cancel(); queryTask?.cancel(); searchTask?.cancel()
     vcsStatus = nil; vcsGeneration += 1; vcsTask?.cancel(); vcsPendingRefresh = nil
     let token = generation, target = directory
@@ -1153,6 +1159,19 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
   private func goAddress(_ value: String) {
     let input = value.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !input.isEmpty, !input.contains("\0") else { return }
+    let targetDir = directory.isFileURL ? directory : home
+    if NativeTerminal.isTerminalAlias(input) {
+      openTerminal(at: targetDir)
+      return
+    }
+    if let command = NativeTerminal.extractCommand(from: input, currentDirectory: targetDir, home: home) {
+      do {
+        try NativeTerminal.runCommand(command, in: targetDir, selected: defaults.string(forKey: NativeTerminal.preferenceKey) ?? "")
+      } catch {
+        lastError = error.localizedDescription; render()
+      }
+      return
+    }
     addressSubmission += 1; let request = addressSubmission
     if input.lowercased().hasPrefix("smb:") { connectServer(input); return }
     let base = directory, tab = tabs[activeTab].id, home = self.home
@@ -1173,6 +1192,7 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
   @objc func selectAllFiles() { selectedPaths = Set(displayRows.compactMap { $0.entry }.map { entries[$0].id }); render() }
   @objc func openSelected() {
     guard let entry = selectedEntries().first, selectedPaths.count == 1 else { return }
+    collection.clearExpandedNames()
     if entry.isDirectory && !entry.isPackage { navigate(to: entry.url) }
     else if NativeArchives.isArchive(entry.url), let window = view.window { NativeArchiveWindow.present(archive: entry.url, parent: window) { [weak self] in self?.acceptExternalResult($0) } }
     else { NSWorkspace.shared.open(entry.url) }
@@ -1501,7 +1521,14 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
       table.scrollRowToVisible(index); table.scrollColumnToVisible(nameColumn); field = (table.view(atColumn: nameColumn, row: index, makeIfNecessary: true) as? NameCell)?.nameLabel
     } else {
       let path = IndexPath(item: index, section: 0)
-      collection.scrollToItems(at: [path], scrollPosition: .top); collection.layoutSubtreeIfNeeded()
+      if let itemFrame = collection.layoutAttributesForItem(at: path)?.frame {
+        if !collection.visibleRect.contains(itemFrame) {
+          collection.scrollToItems(at: [path], scrollPosition: .nearestHorizontalEdge.union(.nearestVerticalEdge))
+        }
+      } else {
+        collection.scrollToItems(at: [path], scrollPosition: .nearestHorizontalEdge.union(.nearestVerticalEdge))
+      }
+      collection.layoutSubtreeIfNeeded()
       field = (collection.item(at: path) as? IconItem)?.nameLabel
     }
     guard let field else { return }
@@ -1855,7 +1882,7 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
     }, browser: self, initialTab: initialTab)
   }
   private func setAppearance(_ mode: String) { defaults.set(mode, forKey: "theme"); NSApp.appearance = mode == "system" ? nil : NSAppearance(named: mode == "dark" ? .darkAqua : .aqua); view.needsDisplay = true; table.reloadData(); collection.reloadData() }
-  private func handleKey(_ event: NSEvent) -> NSEvent? {
+  func handleKey(_ event: NSEvent) -> NSEvent? {
     guard event.window === view.window else { return event }
     if event.type == .scrollWheel {
       guard !automaticRefreshBlocked, !(view.window?.firstResponder is NSTextView) else { return event }
@@ -1864,7 +1891,8 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
       }
       return event
     }
-    if view.window?.firstResponder is ExplorerGroupCell, event.modifierFlags.intersection([.command, .control, .option]).isEmpty, [36, 76, 49].contains(event.keyCode) { return event }
+    let chromeFocus = view.window?.firstResponder
+    if (chromeFocus is ExplorerGroupCell || chromeFocus is ExplorerButton || chromeFocus is ExplorerTabView || chromeFocus is ExplorerSidebarRow || chromeFocus is ExplorerCheckbox), event.modifierFlags.intersection([.command, .control, .option]).isEmpty, [36, 76, 49].contains(event.keyCode) { return event }
     if renamingEntry != nil || view.window.map({ ExplorerDialogs.isPresenting(in: $0) || $0.attachedSheet != nil }) == true { return event }
     let fixed: [String: () -> Void] = [
       "Command+Shift+H": { [weak self] in if let self { self.navigate(to: self.home) } },
@@ -1876,14 +1904,60 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
     ]
     if let action = fixed[ExplorerShortcuts.key(event)] { action(); return nil }
     let editing = view.window?.firstResponder is NSTextView
+    if [115, 119, 123, 124, 125, 126].contains(event.keyCode),
+       event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+       !editing, !(chromeFocus is ExplorerSidebarRow), !(chromeFocus is ExplorerGroupCell) {
+      let targetView: NSView = mode == .details ? table : collection
+      if chromeFocus !== targetView { view.window?.makeFirstResponder(targetView) }
+      targetView.keyDown(with: event)
+      return nil
+    }
+    if event.keyCode == 49, !editing, handleTypeahead(event) { return nil }
     guard let action = ExplorerShortcuts.match(event, overrides: shortcutOverrides) else {
       if !editing, ExplorerShortcuts.actions.contains(where: { shortcutOverrides[$0.id] != nil && $0.defaults.contains(ExplorerShortcuts.key(event)) }) { return nil }
+      if !editing, handleTypeahead(event) { return nil }
       return event
     }
     if !directory.isFileURL && ["rename", "open", "select-all"].contains(action) { return event }
     let global = ["address", "search", "new-tab", "close-tab", "next-tab", "previous-tab", "last-tab"]
     if editing && !global.contains(action) && !action.hasPrefix("tab-") { return event }
     executeAction(action); return nil
+  }
+  @discardableResult
+  func handleTypeahead(_ event: NSEvent) -> Bool {
+    guard !loading, !showsLoadingPlaceholder, !entries.isEmpty else { return false }
+    if renamingEntry != nil || view.window.map({ ExplorerDialogs.isPresenting(in: $0) || $0.attachedSheet != nil }) == true { return false }
+    if view.window?.firstResponder is NSTextView { return false }
+    let candidates: [TypeaheadCandidate] = displayRows.indices.compactMap { row in
+      guard let entryIdx = entryIndex(at: row) else { return nil }
+      let entry = entries[entryIdx]
+      return TypeaheadCandidate(row: row, entry: entry, displayName: displayName(entry))
+    }
+    guard let result = typeahead.matchKey(event, candidates: candidates, selectedPaths: selectedPaths) else { return false }
+    applyTypeaheadSelection(row: result.row, entry: result.entry)
+    return true
+  }
+  private func applyTypeaheadSelection(row: Int, entry: FileEntry) {
+    selectedPaths = [entry.id]
+    if mode == .details {
+      table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+      table.scrollRowToVisible(row)
+      table.setSelectionCursor(row)
+      view.window?.makeFirstResponder(table)
+    } else {
+      let path = IndexPath(item: row, section: 0)
+      let previous = collection.selectionIndexPaths
+      syncingSelection = true
+      collection.selectionIndexPaths = [path]
+      collection.delegate?.collectionView?(collection, didDeselectItemsAt: previous.subtracting([path]))
+      collection.delegate?.collectionView?(collection, didSelectItemsAt: [path])
+      syncingSelection = false
+      collection.setSelectionCursor(row)
+      collection.scrollToItems(at: [path], scrollPosition: .nearestHorizontalEdge.union(.nearestVerticalEdge))
+      view.window?.makeFirstResponder(collection)
+    }
+    updateStatus()
+    updatePane()
   }
   func executeAction(_ action: String) {
     switch action {

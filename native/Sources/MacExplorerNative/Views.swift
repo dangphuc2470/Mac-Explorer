@@ -258,10 +258,11 @@ final class FileTableView: NSTableView {
   override func selectRowIndexes(_ indexes: IndexSet, byExtendingSelection extend: Bool) {
     super.selectRowIndexes(IndexSet(indexes.filter(isFileRow)), byExtendingSelection: extend)
   }
-  var openSelection: (() -> Void)?; var previewSelection: (() -> Void)?; var showContext: ((NSEvent) -> Void)?; var renameSelection: (() -> Void)?; var trashSelection: (() -> Void)?
+  var openSelection: (() -> Void)?; var previewSelection: (() -> Void)?; var showContext: ((NSEvent) -> Void)?; var renameSelection: (() -> Void)?; var trashSelection: (() -> Void)?; var onTypeahead: ((NSEvent) -> Bool)?
   private var marquee: NativeMarqueeSelection?
   private var selectionCursor: Int?
   private var selectionAnchor: Int?
+  func setSelectionCursor(_ index: Int?) { selectionCursor = index; selectionAnchor = index }
   func cancelMarqueeSelection() { marquee?.end(cancelled: false); marquee = nil }
   override func reloadData() { cancelMarqueeSelection(); selectionCursor = nil; selectionAnchor = nil; super.reloadData() }
   override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); if window == nil { cancelMarqueeSelection() } }
@@ -298,10 +299,11 @@ final class FileTableView: NSTableView {
       guard let next = nextFileRow(key: event.keyCode, previous: previous, count: numberOfRows, accepts: isFileRow) else { return }
       selectRowIndexes(IndexSet(integer: next), byExtendingSelection: event.modifierFlags.contains(.shift)); selectionCursor = next; selectionAnchor = next; scrollRowToVisible(next); return
     }
-    if event.keyCode == 36 || event.keyCode == 76 { renameSelection?(); return }
+    if event.keyCode == 36 || event.keyCode == 76 { openSelection?(); return }
     if event.keyCode == 49 { previewSelection?(); return }
     if event.keyCode == 120 { renameSelection?(); return }
     if event.keyCode == 51 && event.modifierFlags.contains(.command) { trashSelection?(); return }
+    if onTypeahead?(event) == true { return }
     super.keyDown(with: event)
   }
 }
@@ -317,20 +319,55 @@ final class FileCollectionView: NSCollectionView {
   }
   var isFileRow: (Int) -> Bool = { _ in true }
   var onGroupClick: ((Int) -> Void)?
-  var openSelection: (() -> Void)?; var previewSelection: (() -> Void)?; var showContext: ((NSEvent) -> Void)?; var renameSelection: (() -> Void)?; var trashSelection: (() -> Void)?
+  var openSelection: (() -> Void)?; var previewSelection: (() -> Void)?; var showContext: ((NSEvent) -> Void)?; var renameSelection: (() -> Void)?; var trashSelection: (() -> Void)?; var onTypeahead: ((NSEvent) -> Bool)?
   private var marquee: NativeMarqueeSelection?
   private var selectionCursor: Int?
   private var selectionAnchor: Int?
   private(set) var isMarqueeSelecting = false
+  func setSelectionCursor(_ index: Int?) { selectionCursor = index; selectionAnchor = index }
+  func clearExpandedNames() { subviews.compactMap { $0 as? NativeExpandedNameView }.forEach { $0.removeFromSuperview() } }
   func cancelMarqueeSelection() { marquee?.end(cancelled: false); marquee = nil }
-  override func reloadData() { cancelMarqueeSelection(); selectionCursor = nil; selectionAnchor = nil; super.reloadData() }
-  override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); if window == nil { cancelMarqueeSelection() } }
+  override func reloadData() { cancelMarqueeSelection(); clearExpandedNames(); selectionCursor = nil; selectionAnchor = nil; super.reloadData() }
+  override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); if window == nil { cancelMarqueeSelection(); clearExpandedNames() } }
   private func applySelection(_ indexes: Set<Int>) {
     let previous = selectionIndexPaths, next = Set(indexes.filter(isFileRow).map { IndexPath(item: $0, section: 0) })
     guard previous != next else { return }; selectionIndexPaths = next
+    if next.isEmpty { clearExpandedNames() }
     delegate?.collectionView?(self, didDeselectItemsAt: previous.subtracting(next)); delegate?.collectionView?(self, didSelectItemsAt: next.subtracting(previous))
   }
   private func refreshExpandedNames() { for item in visibleItems() { item.view.needsLayout = true } }
+  private func nextGridItem(key: UInt16, previous: Int, count: Int) -> Int? {
+    guard count > 0 else { return nil }
+    if key == 115 { return (0..<count).first(where: isFileRow) }
+    if key == 119 { return (0..<count).reversed().first(where: isFileRow) }
+    if previous < 0 || previous >= count || !isFileRow(previous) {
+      return (key == 126 || key == 123) ? (0..<count).reversed().first(where: isFileRow) : (0..<count).first(where: isFileRow)
+    }
+    if key == 123 { return (0..<previous).reversed().first(where: isFileRow) ?? previous }
+    if key == 124 { return ((previous + 1)..<count).first(where: isFileRow) ?? previous }
+    guard let layout = collectionViewLayout as? ExplorerCollectionLayout else {
+      return nextFileRow(key: key, previous: previous, count: count, accepts: isFileRow)
+    }
+    if layout.mode == .list || layout.mode == .content {
+      if key == 126 { return (0..<previous).reversed().first(where: isFileRow) ?? previous }
+      if key == 125 { return ((previous + 1)..<count).first(where: isFileRow) ?? previous }
+    }
+    guard let currentFrame = layout.layoutAttributesForItem(at: IndexPath(item: previous, section: 0))?.frame else {
+      return nextFileRow(key: key, previous: previous, count: count, accepts: isFileRow)
+    }
+    var candidates: [(index: Int, frame: NSRect)] = []
+    for i in 0..<count where isFileRow(i) {
+      if let frame = layout.layoutAttributesForItem(at: IndexPath(item: i, section: 0))?.frame {
+        if key == 125, frame.minY >= currentFrame.maxY - 2 { candidates.append((i, frame)) }
+        else if key == 126, frame.maxY <= currentFrame.minY + 2 { candidates.append((i, frame)) }
+      }
+    }
+    guard !candidates.isEmpty else { return previous }
+    let targetRowY: CGFloat = key == 125 ? candidates.map(\.frame.minY).min()! : candidates.map(\.frame.maxY).max()!
+    let tolerance = max(4, currentFrame.height * 0.5)
+    let nearestRow = candidates.filter { key == 125 ? abs($0.frame.minY - targetRowY) <= tolerance : abs($0.frame.maxY - targetRowY) <= tolerance }
+    return nearestRow.min(by: { abs($0.frame.midX - currentFrame.midX) < abs($1.frame.midX - currentFrame.midX) })?.index ?? previous
+  }
   override func menu(for event: NSEvent) -> NSMenu? {
     let hit = indexPathForItem(at: convert(event.locationInWindow, from: nil))
     if hit == nil || hit.map({ !isFileRow($0.item) }) == true {
@@ -345,16 +382,17 @@ final class FileCollectionView: NSCollectionView {
   override func keyDown(with event: NSEvent) {
     guard NativeSelection.canHandle(self) else { super.keyDown(with: event); return }
     if event.keyCode == 53 { if marquee != nil { marquee?.end(cancelled: true) } else { applySelection([]); selectionCursor = nil; selectionAnchor = nil }; return }
-    if [115, 119, 125, 126].contains(event.keyCode), event.modifierFlags.intersection([.command, .control, .option]).isEmpty, numberOfSections > 0, numberOfItems(inSection: 0) > 0 {
+    if [115, 119, 123, 124, 125, 126].contains(event.keyCode), event.modifierFlags.intersection([.command, .control, .option]).isEmpty, numberOfSections > 0, numberOfItems(inSection: 0) > 0 {
       let count = numberOfItems(inSection: 0), previous = selectionCursor ?? selectionIndexPaths.map(\.item).max() ?? -1
-      guard let next = nextFileRow(key: event.keyCode, previous: previous, count: count, accepts: isFileRow) else { return }
+      guard let next = nextGridItem(key: event.keyCode, previous: previous, count: count) else { return }
       let paths = event.modifierFlags.contains(.shift) ? Set(selectionIndexPaths.map(\.item)).union([next]) : [next]
       applySelection(paths); selectionCursor = next; selectionAnchor = next; scrollToItems(at: [IndexPath(item: next, section: 0)], scrollPosition: .nearestHorizontalEdge.union(.nearestVerticalEdge)); return
     }
-    if event.keyCode == 36 || event.keyCode == 76 { renameSelection?(); return }
+    if event.keyCode == 36 || event.keyCode == 76 { openSelection?(); return }
     if event.keyCode == 49 { previewSelection?(); return }
     if event.keyCode == 120 { renameSelection?(); return }
     if event.keyCode == 51 && event.modifierFlags.contains(.command) { trashSelection?(); return }
+    if onTypeahead?(event) == true { return }
     super.keyDown(with: event)
   }
   override func mouseDown(with event: NSEvent) {
@@ -497,11 +535,13 @@ final class ExplorerCollectionLayout: NSCollectionViewLayout {
   }
 }
 final class ItemSurface: SurfaceView {
-  var selected = false { didSet { needsDisplay = true; needsLayout = true } }; var hovered = false { didSet { subviews.compactMap { $0 as? ExplorerCheckbox }.forEach { $0.hovered = hovered }; needsDisplay = true } }
+  var selected = false { didSet { if !selected { clearExpandedName() }; needsDisplay = true; needsLayout = true } }; var hovered = false { didSet { subviews.compactMap { $0 as? ExplorerCheckbox }.forEach { $0.hovered = hovered }; needsDisplay = true } }
   var bottomLine = false
   private var expandedName: NativeExpandedNameView?
   private var scrollObserver: NSObjectProtocol?
-  override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); hovered = explorerPointerIsInside(self); if window == nil { expandedName?.removeFromSuperview(); expandedName = nil; if let scrollObserver { NotificationCenter.default.removeObserver(scrollObserver) }; scrollObserver = nil } }
+  func clearExpandedName() { expandedName?.removeFromSuperview(); expandedName = nil }
+  override func viewWillMove(toSuperview newSuperview: NSView?) { super.viewWillMove(toSuperview: newSuperview); if newSuperview == nil { clearExpandedName() } }
+  override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); hovered = explorerPointerIsInside(self); if window == nil { clearExpandedName(); if let scrollObserver { NotificationCenter.default.removeObserver(scrollObserver) }; scrollObserver = nil } }
   deinit { if let scrollObserver { NotificationCenter.default.removeObserver(scrollObserver) } }
   override func layout() {
     super.layout(); expandedName?.removeFromSuperview(); expandedName = nil
@@ -574,5 +614,5 @@ final class IconItem: NSCollectionViewItem {
     view.toolTip = entry.url.path; icon.show(entry, pixels: size > 64 ? 256 : size > 32 ? 128 : 64); surface.selected = isSelected; view.needsLayout = true
     view.setAccessibilityLabel(entry.name)
   }
-  override func prepareForReuse() { super.prepareForReuse(); icon.clear(); checkbox.changed = nil; nameLabel.delegate = nil; nameLabel.abortEditing(); nameLabel.isEditable = false; nameLabel.isSelectable = false; nameLabel.isBordered = false; nameLabel.drawsBackground = false }
+  override func prepareForReuse() { super.prepareForReuse(); surface.selected = false; surface.hovered = false; surface.clearExpandedName(); icon.clear(); checkbox.changed = nil; nameLabel.delegate = nil; nameLabel.abortEditing(); nameLabel.isEditable = false; nameLabel.isSelectable = false; nameLabel.isBordered = false; nameLabel.drawsBackground = false }
 }
