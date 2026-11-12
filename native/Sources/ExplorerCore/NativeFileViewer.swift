@@ -20,9 +20,9 @@ public final class NativeFileViewer {
   private let appExists: (String) -> Bool
   public init(backupURL: URL, fixture: URL? = nil, failFirstWrite: Bool = false, appExists: @escaping (String) -> Bool = { _ in true }) { self.backupURL = backupURL; self.testFile = fixture; self.failNextWrite = fixture != nil && failFirstWrite; self.appExists = appExists }
   private var ours: [[String: Any]] { [["LSHandlerContentType": "public.folder", "LSHandlerRoleAll": appID]] }
-  let missingBackup = "缺少有效的原设置备份，无法自动恢复。"
-  let conflict = "文件查看器设置已被其他应用更改，已停止操作以保留这些更改。"
-  func failure(_ message: String) -> NSError { NSError(domain: "MacExplorer.FileViewer", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
+  var missingBackup: String { NL("缺少有效的原设置备份，无法自动恢复。") }
+  var conflict: String { NL("文件查看器设置已被其他应用更改，已停止操作以保留这些更改。") }
+  func failure(_ message: String) -> NSError { NSError(domain: "MacExplorer.FileViewer", code: 1, userInfo: [NSLocalizedDescriptionKey: NL(message)]) }
   func same(_ a: Any?, _ b: Any?) -> Bool { (a as? NSObject ?? NSNull()).isEqual(b as? NSObject ?? NSNull()) }
   func folders(_ records: [[String: Any]]) -> [[String: Any]] { records.filter { ($0["LSHandlerContentType"] as? String) == "public.folder" } }
   // A viewer preference survives its application's removal, and AppKit then falls back to Finder.

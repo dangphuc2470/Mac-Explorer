@@ -101,13 +101,19 @@
       "identity": null,
       "icon": "build/icon.icns",
       "extendInfo": {
-        "NSLocalNetworkUsageDescription": "发现并连接局域网中的共享电脑和文件服务器。",
+        "CFBundleDevelopmentRegion": "en",
+        "CFBundleLocalizations": [
+          "en",
+          "zh-Hans",
+          "zh-Hant"
+        ],
+        "NSLocalNetworkUsageDescription": "Discover nearby devices and connect to local network shared computers and file servers.",
         "NSBonjourServices": [
           "_smb._tcp"
         ],
-        "NSDesktopFolderUsageDescription": "浏览和管理桌面中的文件。",
-        "NSDocumentsFolderUsageDescription": "浏览和管理文稿中的文件。",
-        "NSDownloadsFolderUsageDescription": "浏览和管理下载中的文件。",
+        "NSDesktopFolderUsageDescription": "Browse and manage files on Desktop.",
+        "NSDocumentsFolderUsageDescription": "Browse and manage files in Documents.",
+        "NSDownloadsFolderUsageDescription": "Browse and manage files in Downloads.",
         "CFBundleDocumentTypes": [
           {
             "CFBundleTypeName": "Files and Folders",

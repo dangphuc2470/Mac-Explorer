@@ -1,152 +1,151 @@
 <div align="center">
-  <img src="design/icon-selected-mirrored.png" width="88" alt="Mac Explorer 图标">
+  <img src="design/icon-selected-mirrored.png" width="88" alt="Mac Explorer icon">
   <h1>Mac Explorer</h1>
-  <p><strong>简体中文</strong> &nbsp;·&nbsp; <a href="README.zh-TW.md">繁體中文</a> &nbsp;·&nbsp; <a href="README.en.md">English</a></p>
-  <h3>熟悉的操作，Mac 的体验。</h3>
-  <p>一款原生 macOS 文件管理器，让熟悉的 Windows 文件管理习惯，在 Mac 上继续。<br>从工作文档到生活照片，为每天与文件打交道的你而做。</p>
+  <h3>Familiar workflows. A Mac experience.</h3>
+  <p>A native macOS file manager that brings familiar Windows file management habits to your Mac.<br>From work documents to personal photos, built for the files you work with every day.</p>
   <p>
-    <a href="#下载与安装"><strong>一键安装</strong></a> &nbsp;·&nbsp;
-    <a href="#日常所需触手可及">功能一览</a> &nbsp;·&nbsp;
-    <a href="https://github.com/qixiaoyu27/Mac-Explorer/releases">更新记录</a>
+    <a href="#download-and-install"><strong>Quick install</strong></a> &nbsp;·&nbsp;
+    <a href="#everyday-essentials-within-reach">Features</a> &nbsp;·&nbsp;
+    <a href="https://github.com/qixiaoyu27/Mac-Explorer/releases">Release notes</a>
   </p>
-  <p><sub>macOS 13 及以上 · Apple Silicon（M 系列）· 免费开源</sub></p>
+  <p><sub>macOS 13 or later · Apple Silicon (M series) · Free and open source</sub></p>
 </div>
 
 <br>
 
-![Mac Explorer 界面预览](docs/images/explorer-light-0.1.53.png)
+![Mac Explorer interface preview](docs/images/explorer-light-0.1.53.png)
 
-<p align="center"><sub>图示为早期版本，当前版本界面以实际应用为准。</sub></p>
+<p align="center"><sub>This screenshot shows an early version. The current interface may differ.</sub></p>
 
-换到 Mac，有很多值得喜欢的新体验，也有一些早已顺手的习惯：沿着目录树找文件，复制一段路径直达目的地，在几个文件夹之间剪切、粘贴。Mac Explorer 希望把这些习惯接续下来，让你把注意力留给手头的事情。
+Switching to a Mac brings plenty of new things to enjoy, along with habits you already rely on: finding files in a folder tree, pasting a path to jump straight to a destination, or cutting and pasting between folders. Mac Explorer keeps those habits within reach so you can focus on what you are doing.
 
-无论是整理一周的下载、挑选旅行照片，还是在多个项目之间切换，你都可以用熟悉的方式开始，再慢慢把视图、工具栏和快捷键调整成自己的样子。
+Whether you are sorting a week's downloads, choosing travel photos, or switching between projects, you can start with familiar workflows and gradually make the views, toolbar, and keyboard shortcuts your own.
 
-## 下载与安装
+## Download and install
 
-打开「终端」，执行：
+Open Terminal and run:
 
 ```sh
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/qixiaoyu27/Mac-Explorer/refs/heads/main/scripts/install-homebrew.sh)"
 ```
 
-自动安装所需的 Homebrew，再安装 Mac Explorer；已有应用会检查并更新，保留个人文件和偏好设置。以后检查更新也运行同一条命令。首次安装 Homebrew 时可能需要输入 Mac 登录密码。
+The command installs Homebrew if needed, then installs Mac Explorer. If the app is already installed, it checks for updates and updates it while preserving your personal files and preferences. Run the same command to check for updates later. Installing Homebrew for the first time may require your Mac login password.
 
-<sub>应用支持 macOS 13 及以上 · Apple Silicon（M 系列）；Homebrew 自身的系统要求以其[官网](https://brew.sh/)为准。</sub>
+<sub>The app supports macOS 13 or later on Apple Silicon (M series). See the [Homebrew website](https://brew.sh/) for Homebrew's own system requirements.</sub>
 
-> **首次打开**
-> 当前版本尚未经过 Apple 公证。若 macOS 阻止打开，请确认下载来源为本仓库，再到「系统设置 → 隐私与安全性」允许打开。若系统明确提示恶意软件，请勿继续运行。
+> **Opening for the first time**
+> The current version is not notarized by Apple. If macOS blocks it from opening, confirm that you downloaded it from this repository, then allow it in System Settings → Privacy & Security. If macOS explicitly reports malware, do not continue.
 
 <details>
-<summary>也可以手动安装 DMG</summary>
+<summary>Install manually with a DMG</summary>
 
-1. 前往 [下载页面](https://github.com/qixiaoyu27/Mac-Explorer/releases/latest)，选择 **DMG** 安装包。
-2. 打开 DMG，将 **Mac Explorer** 拖入 **Applications（应用程序）**。更新时请先退出旧版本。
-3. 打开应用，按需允许访问桌面、文稿或下载文件夹。
+1. Visit the [download page](https://github.com/qixiaoyu27/Mac-Explorer/releases/latest) and choose the **DMG** installer.
+2. Open the DMG and drag **Mac Explorer** into **Applications**. Quit the previous version before updating.
+3. Open the app and grant access to your Desktop, Documents, or Downloads folders as needed.
 
 </details>
 
 <details>
-<summary>从早期版本升级</summary>
+<summary>Upgrade from an earlier version</summary>
 
-从早期 Electron 版升级时，运行上方命令即可。旧版应用内更新器无法自动完成此次迁移。
+To upgrade from an earlier Electron version, run the command above. The old in-app updater cannot complete this migration automatically.
 
-个人文件不受影响。外观、快捷键和窗口会话等偏好需要重新设置；收藏夹可通过「设置 → 常规 → 从 Finder 导入收藏夹」重新导入。
+Your personal files are unaffected. Preferences such as appearance, keyboard shortcuts, and window sessions need to be set up again. You can import your favorites again through Settings → General → Import Favorites from Finder.
 
 </details>
 
-## 日常所需，触手可及
+## Everyday essentials, within reach
 
-文件管理贯穿一天里许多细小的时刻。找到刚下载的附件，确认一份文档，把整理好的资料交给同事——这些小事，值得一套顺手的工具。
+File management fills many small moments throughout the day: finding a downloaded attachment, checking a document, or handing organized files to a colleague. Those small tasks deserve tools that feel natural.
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <h3>浏览，有条不紊</h3>
-      <p>资料在下载目录，成品在项目文件夹，参考内容又放在另一处。用多个标签页保留各自的位置，沿目录树浏览，或输入路径直达目的地。</p>
-      <p>把常用文件夹固定到快速访问，也能导入 Finder 收藏夹，让熟悉的位置随手可达。</p>
+      <h3>Browse with everything in order</h3>
+      <p>Downloads in one place, finished work in a project folder, references somewhere else. Keep each location open in its own tab, browse the folder tree, or enter a path to go straight there.</p>
+      <p>Pin frequently used folders to Quick Access or import your Finder favorites to keep familiar locations close at hand.</p>
     </td>
     <td width="50%" valign="top">
-      <h3>查看，恰到好处</h3>
-      <p>挑照片时看大图标，整理文档时看名称、日期和大小。八种视图适应不同内容，每个文件夹记住自己的布局与排序。</p>
-      <p>不确定是不是要找的文件？按下空格快速预览，看过之后再决定。</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>整理，顺手完成</h3>
-      <p>把零散的下载归档，为文档改个清楚的名字，将准备好的资料打包。剪切、粘贴、拖放、重命名与撤销，延续熟悉的操作顺序。</p>
-      <p>收到压缩包时，先浏览内容再决定解压；需要分享时，也可以直接创建 ZIP。</p>
-    </td>
-    <td width="50%" valign="top">
-      <h3>习惯，由你定义</h3>
-      <p>喜欢明亮清晰，或习惯深色环境，都可以选择，也可以跟随系统。简体中文、繁体中文与英文，让界面用你熟悉的语言表达。</p>
-      <p>将常用操作留在工具栏，把快捷键调成顺手的组合，让工具配合你的节奏。</p>
+      <h3>Find the right view</h3>
+      <p>Use large icons to pick photos, or names, dates, and sizes to organize documents. Eight views suit different kinds of content, and each folder remembers its layout and sort order.</p>
+      <p>Not sure whether a file is the one you need? Press Space for a quick preview before deciding.</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h3>不同位置，一处浏览</h3>
-      <p>本机文稿、iCloud Drive、外接磁盘和网络共享，各有各的用途。用熟悉的导航方式访问这些位置，减少来回寻找入口。</p>
-      <p>从个人资料到共享文件夹，让日常整理有一个清晰的起点。</p>
+      <h3>Organize with familiar actions</h3>
+      <p>File away scattered downloads, give documents clear names, and package files for sharing. Cut, paste, drag and drop, rename, and undo work in a familiar sequence.</p>
+      <p>Browse an archive before extracting it, or create a ZIP directly when you need to share files.</p>
     </td>
     <td width="50%" valign="top">
-      <h3>项目细节，随时查看</h3>
-      <p>处理代码项目时，通过 Git / SVN 集成查看文件状态与差异，按需完成版本管理操作。</p>
-      <p>不需要这些功能时，可以关闭检测，将注意力留给眼前的文件。</p>
+      <h3>Make it your own</h3>
+      <p>Choose a light or dark appearance, or follow your system setting. Simplified Chinese, Traditional Chinese, and English let you work in a familiar language.</p>
+      <p>Keep frequent actions on the toolbar and customize keyboard shortcuts to suit the way you work.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Different locations, one place to browse</h3>
+      <p>Local documents, iCloud Drive, external disks, and network shares each have their uses. Reach them through familiar navigation without searching for a different entry point each time.</p>
+      <p>From personal files to shared folders, give everyday organization a clear starting point.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>Check project details as you work</h3>
+      <p>When working on code projects, use Git / SVN integration to inspect file status and differences and perform version control actions as needed.</p>
+      <p>When you do not need these features, turn off detection and focus on the files in front of you.</p>
     </td>
   </tr>
 </table>
 
 <br>
 
-## 熟悉，也尊重你的选择
+## Familiar, with room for your choices
 
-### 和 Finder 一起，各得其所
+### At home alongside Finder
 
-你可以继续使用 Finder，也可以在需要目录树、多标签或熟悉的剪切粘贴流程时打开 Mac Explorer。它们可以共存，不必一次改变所有习惯。文件夹访问权限仍由 macOS 管理，系统集成功能由你主动开启。
+Keep using Finder, and open Mac Explorer when you want a folder tree, multiple tabs, or a familiar cut-and-paste workflow. They can coexist, so you do not have to change every habit at once. macOS still manages folder access permissions, and you choose which system integrations to enable.
 
-### 认真对待每一次整理
+### Care for every file you organize
 
-文件里装着工作成果，也可能是只拍过一次的照片。普通删除会进入系统回收站；复制、移动与解压遇到重名文件时，不会静默覆盖。处理文件时，让结果清楚、让必要的确认被看见，是我们看重的基本体验。
+Files hold your work, and sometimes photos you only had one chance to take. Regular deletion moves files to the system Trash. Copying, moving, and extracting files will not silently overwrite files with the same name. Clear results and visible confirmations where they matter are part of the experience we value.
 
-### 免费开源，一起慢慢打磨
+### Free, open source, and shaped together
 
-你可以自由使用，也可以查看源代码、提出改进或参与开发。一处不顺手的交互、一条不够清楚的提示，都值得被认真讨论。我们希望在这些具体的小事里，让 Mac Explorer 越来越好用。
+Use it freely, read the source, suggest improvements, or contribute to development. An awkward interaction or an unclear message is worth discussing. By paying attention to these small details, we hope to make Mac Explorer more useful over time.
 
 <details>
-<summary>常用快捷键</summary>
+<summary>Common keyboard shortcuts</summary>
 
-| 操作 | 快捷键 |
+| Action | Shortcut |
 | --- | --- |
-| 复制 / 剪切 / 粘贴 | ⌘C / ⌘X / ⌘V |
-| 新建标签页 | ⌘T |
-| 前往文件夹 | ⇧⌘G |
-| 搜索 | ⌘F |
-| 重命名 | Return 或 F2 |
-| 快速查看 | Space |
-| 移到回收站 | ⌘⌫ |
-| 打开设置 | ⌘, |
+| Copy / Cut / Paste | ⌘C / ⌘X / ⌘V |
+| New tab | ⌘T |
+| Go to folder | ⇧⌘G |
+| Search | ⌘F |
+| Rename | Return or F2 |
+| Quick Look | Space |
+| Move to Trash | ⌘⌫ |
+| Open settings | ⌘, |
 
-更多操作与自定义选项可在应用菜单和设置中查看。
+Find more actions and customization options in the app menus and settings.
 
 </details>
 
-## 反馈与参与
+## Feedback and contributions
 
-如果某一步让你停下来想了想，或某个熟悉的操作还不够顺手，欢迎 [告诉我们](https://github.com/qixiaoyu27/Mac-Explorer/issues)。描述你当时想做什么、遇到了什么，会帮助我们理解问题；报告故障时，请附上应用与 macOS 版本、复现步骤，并隐去私人信息。
+If a step makes you pause, or a familiar action still feels awkward, please [let us know](https://github.com/qixiaoyu27/Mac-Explorer/issues). Describing what you were trying to do and what happened helps us understand the problem. For bug reports, include the app version, macOS version, and steps to reproduce, and remove any private information.
 
-也欢迎参与代码、测试和文档改进，相关说明见 [开发文档](native/README.md) 与 [贡献约定](AGENTS.md)。感谢每一位愿意花时间试用、反馈和贡献的人，让这个项目一点点变得更完善。
+Contributions to code, testing, and documentation are welcome. See the [development guide](native/README.md) and [contribution guidelines](AGENTS.md). Thank you to everyone who takes the time to try the app, share feedback, and contribute to making this project better.
 
 <details>
-<summary>版本策略</summary>
+<summary>Versioning policy</summary>
 
-<a id="版本策略"></a>
+<a id="versioning-policy"></a>
 
-采用 SemVer：兼容修复更新 PATCH，兼容功能更新 MINOR，不兼容变更更新 MAJOR。版本号仅在正式发布到 GitHub 时更新，日常开发、测试和本地构建不递增；已发布版本、tag 和附件不覆盖。
+We follow SemVer: PATCH for compatible fixes, MINOR for compatible features, and MAJOR for incompatible changes. Version numbers change only for official GitHub releases, not for everyday development, testing, or local builds. Published versions, tags, and release assets are never overwritten.
 
 </details>
 
 ---
 
-[GPL-3.0 开源许可](LICENSE) · 界面图标包含 [Lucide artwork（ISC）](native/ICON-LICENSE.txt)
+[GPL-3.0 license](LICENSE) · Interface icons include [Lucide artwork (ISC)](native/ICON-LICENSE.txt)

@@ -1,0 +1,4 @@
+"NSLocalNetworkUsageDescription" = "Discover nearby devices and connect to local network shared computers and file servers.";
+"NSDesktopFolderUsageDescription" = "Browse files on Desktop.";
+"NSDocumentsFolderUsageDescription" = "Browse files in Documents.";
+"NSDownloadsFolderUsageDescription" = "Browse files in Downloads.";

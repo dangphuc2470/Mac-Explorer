@@ -27,6 +27,8 @@ if any(command.strip() == binary_path or command.strip().startswith(binary_path 
 (contents / "Resources").mkdir(exist_ok=True)
 subprocess.run([sys.executable, str(root / "scripts" / "make-icon.py"), "--output", str(contents / "Resources" / "AppIcon.icns")], check=True)
 shutil.copytree(root / "Resources" / "locales", contents / "Resources" / "locales", dirs_exist_ok=True)
+for lang in ["en", "zh-Hans", "zh-Hant"]:
+    shutil.copytree(root / "Resources" / f"{lang}.lproj", contents / "Resources" / f"{lang}.lproj", dirs_exist_ok=True)
 for script in ["install-native.sh", "update-native.sh"]:
     shutil.copy2(root / "scripts" / script, contents / "Resources" / script)
 helpers = contents / "Helpers"
@@ -55,15 +57,17 @@ info = {
     "CFBundleIconFile": "AppIcon.icns",
     "CFBundleShortVersionString": (root / "VERSION").read_text().strip(),
     "CFBundleVersion": "1",
+    "CFBundleDevelopmentRegion": "en",
+    "CFBundleLocalizations": ["en", "zh-Hans", "zh-Hant"],
     "LSMinimumSystemVersion": "13.0",
     "NSHighResolutionCapable": True,
     "NSPrincipalClass": "NSApplication",
     "CFBundleDocumentTypes": [{"CFBundleTypeName": "Files and Folders", "CFBundleTypeRole": "Viewer", "LSHandlerRank": "Alternate", "LSItemContentTypes": ["public.data", "public.folder", "public.volume", "public.text", "public.image", "public.audio", "public.movie", "public.archive", "com.adobe.pdf", "com.apple.package"]}],
-    "NSLocalNetworkUsageDescription": "查找附近设备并连接局域网共享电脑和文件服务器。",
+    "NSLocalNetworkUsageDescription": "Discover nearby devices and connect to local network shared computers and file servers.",
     "NSBonjourServices": ["_smb._tcp"],
-    "NSDesktopFolderUsageDescription": "浏览桌面中的文件。",
-    "NSDocumentsFolderUsageDescription": "浏览文稿中的文件。",
-    "NSDownloadsFolderUsageDescription": "浏览下载中的文件。",
+    "NSDesktopFolderUsageDescription": "Browse files on Desktop.",
+    "NSDocumentsFolderUsageDescription": "Browse files in Documents.",
+    "NSDownloadsFolderUsageDescription": "Browse files in Downloads.",
 }
 with (contents / "Info.plist").open("wb") as output:
     plistlib.dump(info, output)

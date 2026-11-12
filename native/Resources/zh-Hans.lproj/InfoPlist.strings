@@ -1,0 +1,4 @@
+"NSLocalNetworkUsageDescription" = "查找附近设备并连接局域网共享电脑和文件服务器。";
+"NSDesktopFolderUsageDescription" = "浏览桌面中的文件。";
+"NSDocumentsFolderUsageDescription" = "浏览文稿中的文件。";
+"NSDownloadsFolderUsageDescription" = "浏览下载中的文件。";
