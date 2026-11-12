@@ -183,9 +183,36 @@ enum ExplorerDialogs {
 private enum EDColors {
   static let dialog = dynamic(0xffffff, 0x2b2b2b)
   static let inset = dynamic(0xf5f5f5, 0x252525)
-  static let primaryText = dynamic(0xffffff, 0x10202b)
-  static let primaryHover = dynamic(0x1975c5, 0x8bd3ff)
-  static let primaryPressed = dynamic(0x3686cc, 0x5eb8ef)
+  static var primaryText: NSColor {
+    NSColor(name: nil) { appearance in
+      var srgb = NSColor(srgbRed: 0, green: 0.4, blue: 0.75, alpha: 1)
+      appearance.performAsCurrentDrawingAppearance {
+        if let resolved = NSColor.controlAccentColor.usingColorSpace(.sRGB) { srgb = resolved }
+      }
+      let lum = 0.2126 * srgb.redComponent + 0.7152 * srgb.greenComponent + 0.0722 * srgb.blueComponent
+      return lum > 0.55 ? NSColor(srgbRed: 0x10 / 255, green: 0x20 / 255, blue: 0x2b / 255, alpha: 1) : .white
+    }
+  }
+  static var primaryHover: NSColor {
+    NSColor(name: nil) { appearance in
+      let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+      var base = NSColor(srgbRed: 0, green: 0.4, blue: 0.75, alpha: 1)
+      appearance.performAsCurrentDrawingAppearance {
+        if let srgb = NSColor.controlAccentColor.usingColorSpace(.sRGB) { base = srgb }
+      }
+      return base.blended(withFraction: isDark ? 0.16 : 0.12, of: isDark ? .white : .black) ?? base
+    }
+  }
+  static var primaryPressed: NSColor {
+    NSColor(name: nil) { appearance in
+      let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+      var base = NSColor(srgbRed: 0, green: 0.4, blue: 0.75, alpha: 1)
+      appearance.performAsCurrentDrawingAppearance {
+        if let srgb = NSColor.controlAccentColor.usingColorSpace(.sRGB) { base = srgb }
+      }
+      return base.blended(withFraction: isDark ? 0.24 : 0.22, of: isDark ? .black : .white) ?? base
+    }
+  }
   static let error = dynamic(0xad2626, 0xffaaaa)
   static let dim = NSColor(name: nil) { appearance in
     NSColor.black.withAlphaComponent(appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? 136.0 / 255 : 38.0 / 255)

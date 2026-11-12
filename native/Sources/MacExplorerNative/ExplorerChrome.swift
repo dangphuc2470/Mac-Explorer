@@ -11,8 +11,20 @@ enum ExplorerPalette {
   static let border = dynamic(0xe5e5e5, 0x383838)
   static let hover = dynamic(0x000000, 0xffffff, lightAlpha: 8.0 / 255, darkAlpha: 13.0 / 255)
   static let pressed = dynamic(0x000000, 0xffffff, lightAlpha: 14.0 / 255, darkAlpha: 22.0 / 255)
-  static let accent = dynamic(0x0067c0, 0x70c5ff)
-  static let selection = dynamic(0xe5f3ff, 0x29445a)
+  static var accent: NSColor { NSColor.controlAccentColor }
+  static var selection: NSColor {
+    NSColor(name: nil) { appearance in
+      let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+      let base = isDark ? rgb(0x191919) : rgb(0xffffff)
+      var resolvedAccent = rgb(isDark ? 0x70c5ff : 0x0067c0)
+      appearance.performAsCurrentDrawingAppearance {
+        if let srgb = NSColor.controlAccentColor.usingColorSpace(.sRGB) {
+          resolvedAccent = srgb
+        }
+      }
+      return resolvedAccent.blended(withFraction: isDark ? 0.72 : 0.82, of: base) ?? resolvedAccent.withAlphaComponent(isDark ? 0.28 : 0.18)
+    }
+  }
   static let sidebar = dynamic(0xfcfcfc, 0x202020)
   static let toolbar = dynamic(0xfafafa, 0x242424)
   static let input = dynamic(0xf9f9f9, 0x2c2c2c)
