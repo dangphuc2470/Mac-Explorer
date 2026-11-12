@@ -413,12 +413,14 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
     x = width <= 900 ? 12 : 17
     let newWidth = max(90, newButton.intrinsicContentSize.width), menuWidth = max(90, sortButton.intrinsicContentSize.width, viewButton.intrinsicContentSize.width)
     newButton.frame = NSRect(x: x, y: 11, width: newWidth, height: 34); x += newWidth + gap
+    previewButton.title = width <= 900 ? "" : NL("预览")
+    let previewWidth = width <= 900 ? 35 : max(90, ceil(previewButton.intrinsicContentSize.width) + 4)
     for (key, button) in commands { button.isHidden = !toolbarOrder.contains(key) }
     firstDivider.isHidden = toolbarOrder.isEmpty; secondDivider.isHidden = toolbarOrder.isEmpty; commandToolsScroll.isHidden = toolbarOrder.isEmpty
     if !toolbarOrder.isEmpty {
       firstDivider.frame = NSRect(x: x, y: 18, width: 1, height: 20); x += 1 + gap
       let fullWidth = CGFloat(toolbarOrder.count * 45 - 10)
-      let groupWidth = min(fullWidth, max(35, width - x - (2 * gap + 1 + menuWidth + gap + menuWidth + gap + 35 + gap + (width <= 900 ? 35 : 73) + 17)))
+      let groupWidth = min(fullWidth, max(35, width - x - (2 * gap + 1 + menuWidth + gap + menuWidth + gap + 35 + gap + previewWidth + (width <= 900 ? 12 : 17))))
       commandToolsScroll.frame = NSRect(x: x, y: 11, width: groupWidth, height: 34); commandTools.frame = NSRect(x: 0, y: 0, width: fullWidth, height: 34)
       for (index, key) in toolbarOrder.enumerated() { commands[key]?.frame = NSRect(x: CGFloat(index) * 45, y: 0, width: 35, height: 34) }
       x += groupWidth + gap; secondDivider.frame = NSRect(x: x, y: 18, width: 1, height: 20); x += 1 + gap
@@ -426,8 +428,7 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
     sortButton.frame = NSRect(x: x, y: 11, width: menuWidth, height: 34); x += menuWidth + gap
     viewButton.frame = NSRect(x: x, y: 11, width: menuWidth, height: 34); x += menuWidth + gap
     moreButton.frame = NSRect(x: x, y: 11, width: 35, height: 34)
-    previewButton.frame = NSRect(x: width - (width <= 900 ? 47 : 90), y: 11, width: width <= 900 ? 35 : 73, height: 34)
-    previewButton.title = width <= 900 ? "" : NL("预览")
+    previewButton.frame = NSRect(x: width - (width <= 900 ? 47 : previewWidth + 17), y: 11, width: previewWidth, height: 34)
     specialView.frame = content.bounds; loadingView.frame = content.bounds
     tableScroll.frame = NSRect(x: 14, y: 0, width: max(0, content.bounds.width - 38), height: content.bounds.height)
     collectionScroll.frame = content.bounds
