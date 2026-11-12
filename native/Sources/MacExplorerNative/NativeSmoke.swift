@@ -69,6 +69,14 @@ enum NativeSmoke {
       try await until { !browser.loading && browser.snapshot != nil && browser.entries.count == 10_003 }
       window.contentView?.layoutSubtreeIfNeeded()
       checks += try await NativeInputNavigationChecks.runBrowser(browser: browser, window: window)
+      if let close = window.standardWindowButton(.closeButton),
+         let miniaturize = window.standardWindowButton(.miniaturizeButton),
+         let zoom = window.standardWindowButton(.zoomButton),
+         let titlebar = close.superview {
+        titlebar.layoutSubtreeIfNeeded()
+        let topOffset = titlebar.isFlipped ? close.frame.minY : titlebar.bounds.height - close.frame.maxY
+        try expect(abs(close.frame.minX - 16) < 0.5 && abs(miniaturize.frame.minX - 38) < 0.5 && abs(zoom.frame.minX - 60) < 0.5 && abs(topOffset - 16) < 0.5, "Traffic lights align cleanly inside the tab bar")
+      }
       try expect(!browser.content.hasAmbiguousLayout && browser.content.bounds.height > 300, "file area has a non-ambiguous usable layout")
       try await until { IconLoader.shared.isIdle && IconLoader.shared.loads > 0 }
       try expect(browser.table.numberOfRows == 10_003, "10,003 visible fixture entries loaded")
@@ -215,6 +223,11 @@ enum NativeSmoke {
       try await Task.sleep(nanoseconds: 100_000_000)
       window.contentView?.layoutSubtreeIfNeeded()
       try expect(browser.content.bounds.height > 300 && browser.address.bounds.width > 250, "compact window preserves navigation and usable file area")
+      if let close = window.standardWindowButton(.closeButton), let titlebar = close.superview {
+        titlebar.layoutSubtreeIfNeeded()
+        let topOffset = titlebar.isFlipped ? close.frame.minY : titlebar.bounds.height - close.frame.maxY
+        try expect(abs(close.frame.minX - 16) < 0.5 && abs(topOffset - 16) < 0.5, "Traffic light alignment persists across window resize")
+      }
       try capture(window, at: report.deletingLastPathComponent().appendingPathComponent("native-compact.png"))
       NSApp.appearance = nil
       checks += try await NativeParityChecks.run(source: browser, output: report.deletingLastPathComponent())

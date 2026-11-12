@@ -1,5 +1,6 @@
 import AppKit
 import ExplorerCore
+import ObjectiveC
 
 @main
 enum NativeExplorer {
@@ -114,6 +115,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuItemVali
   }
 
   func register(_ window: NSWindow, browser: BrowserController) {
+    MainActor.assumeIsolated { TrafficLightAlignment.install(for: window) }
     browser.versionControl = versionControl; browser.systemIntegration = systemIntegration
     if !browserWindows.contains(where: { $0 === window }) { browserWindows.append(window) }; window.delegate = self
     browser.onLanguageChange = { [weak self, weak browser] mode in
@@ -160,7 +162,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuItemVali
     window = owner; browser = controller; makeMenus()
   }
   func windowDidBecomeMain(_ notification: Notification) {
-    if let owner = notification.object as? NSWindow { activate(owner) }
+    if let owner = notification.object as? NSWindow {
+      activate(owner)
+      TrafficLightAlignment.apply(to: owner)
+    }
+  }
+  func windowDidBecomeKey(_ notification: Notification) {
+    if let owner = notification.object as? NSWindow {
+      TrafficLightAlignment.apply(to: owner)
+    }
   }
   func windowWillClose(_ notification: Notification) {
     guard let owner = notification.object as? NSWindow else { return }
@@ -381,4 +391,64 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuItemVali
     return window == nil || !ExplorerDialogs.isPresenting(in: window)
   }
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+
+@MainActor
+enum TrafficLightAlignment {
+  private static var isHooked = false
+  private static var originalLayoutIMP: IMP?
+
+  static func install(for window: NSWindow) {
+    guard let closeButton = window.standardWindowButton(.closeButton),
+          let titlebarView = closeButton.superview else { return }
+    let buttons: [NSButton?] = [
+      window.standardWindowButton(.closeButton),
+      window.standardWindowButton(.miniaturizeButton),
+      window.standardWindowButton(.zoomButton)
+    ]
+    for b in buttons { b?.autoresizingMask = [] }
+    if !isHooked {
+      isHooked = true
+      let titlebarClass: AnyClass = type(of: titlebarView)
+      let selector = #selector(NSView.layout)
+      if let method = class_getInstanceMethod(titlebarClass, selector) {
+        originalLayoutIMP = method_getImplementation(method)
+        let block: @convention(block) (AnyObject) -> Void = { view in
+          MainActor.assumeIsolated {
+            if let originalIMP = TrafficLightAlignment.originalLayoutIMP {
+              typealias LayoutFunc = @convention(c) (AnyObject, Selector) -> Void
+              let orig = unsafeBitCast(originalIMP, to: LayoutFunc.self)
+              orig(view, selector)
+            }
+            if let v = view as? NSView, let win = v.window {
+              TrafficLightAlignment.apply(to: win)
+            }
+          }
+        }
+        let newIMP = imp_implementationWithBlock(block)
+        method_setImplementation(method, newIMP)
+      }
+    }
+    apply(to: window)
+  }
+
+  static func apply(to window: NSWindow) {
+    guard window.styleMask.contains(.fullSizeContentView),
+          !window.styleMask.contains(.fullScreen),
+          window.contentViewController is BrowserController || window.title.contains("Mac Explorer") else { return }
+    guard let closeButton = window.standardWindowButton(.closeButton),
+          let parent = closeButton.superview else { return }
+    let buttons: [NSButton?] = [
+      window.standardWindowButton(.closeButton),
+      window.standardWindowButton(.miniaturizeButton),
+      window.standardWindowButton(.zoomButton)
+    ]
+    let topOffset: CGFloat = 16.0
+    for (i, button) in buttons.enumerated() {
+      guard let b = button else { continue }
+      let x: CGFloat = 16.0 + CGFloat(i) * 22.0
+      let y = parent.isFlipped ? topOffset : max(0, parent.bounds.height - topOffset - b.frame.height)
+      b.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+  }
 }
