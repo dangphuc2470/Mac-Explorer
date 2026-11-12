@@ -42,7 +42,7 @@ enum NativeParityChecks {
     source.selectedPaths = [file.id]
     menu = source.contextItems()
     try expect(Array(menu.prefix(3).map(\.title)) == ["打开", "打开方式", "使用文本编辑"], "File context preserves Open and Open With ordering")
-    try expect(menu.first { $0.title == "重命名" }?.shortcut == ExplorerShortcuts.display("Enter"), "Context shortcut hints use the effective binding rather than hardcoded F2")
+    try expect(menu.first { $0.title == "重命名" }?.shortcut == ExplorerShortcuts.display("F2"), "Context shortcut hints use the effective binding rather than hardcoded F2")
     menu.first { $0.title == "复制文件地址" }?.action?()
     try expect(source.filePasteboard.string(forType: .string) == file.url.path, "Copy file address writes the selected fixture path")
     func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }

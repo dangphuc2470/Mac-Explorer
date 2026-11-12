@@ -9,8 +9,8 @@ struct ExplorerShortcut {
 
 enum ExplorerShortcuts {
   static var actions: [ExplorerShortcut] { [
-    .init(id: "rename", title: NL("重命名"), defaults: ["Enter", "F2"]),
-    .init(id: "open", title: NL("打开项目"), defaults: ["Command+O", "Command+Down"]),
+    .init(id: "rename", title: NL("重命名"), defaults: ["F2"]),
+    .init(id: "open", title: NL("打开项目"), defaults: ["Enter", "Command+O", "Command+Down"]),
     .init(id: "copy", title: NL("复制"), defaults: ["Command+C", "Control+C"]),
     .init(id: "cut", title: NL("剪切"), defaults: ["Command+X", "Control+X"]),
     .init(id: "paste", title: NL("粘贴"), defaults: ["Command+V", "Control+V"]),
