@@ -80,6 +80,18 @@ enum NativeWorkflowChecks {
     browser.table.scrollRowToVisible(80); window.contentView?.layoutSubtreeIfNeeded()
     browser.table.scrollRowToVisible(0); window.contentView?.layoutSubtreeIfNeeded()
     try check(checkboxMatches(0) && checkboxMatches(1), "Recreated rows retain the correct checkbox selection")
+    browser.table.deselectAll(nil); browser.selectedPaths = []
+    let keyF = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "f", charactersIgnoringModifiers: "f", isARepeat: false, keyCode: 3)!
+    _ = browser.handleKey(keyF)
+    try check(browser.selectedPaths.count == 1, "Typeahead key 'f' selects the first matching item")
+    let firstSelected = browser.selectedPaths.first!
+    _ = browser.handleKey(keyF)
+    try check(browser.selectedPaths.count == 1 && browser.selectedPaths.first != firstSelected, "Pressing 'f' again cycles to the next matching item")
+    let keyO = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "o", charactersIgnoringModifiers: "o", isARepeat: false, keyCode: 31)!
+    let keyL = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "l", charactersIgnoringModifiers: "l", isARepeat: false, keyCode: 37)!
+    browser.reload(); try await until { !browser.loading }
+    _ = browser.handleKey(keyF); _ = browser.handleKey(keyO); _ = browser.handleKey(keyL)
+    try check(browser.selectedPaths == [folder.path], "Typing 'fol' selects the 'Folder' entry")
     let hoverSelection = browser.selectedPaths
     window.pointerIsActive = true
     let hoverEvent = NSEvent.mouseEvent(with: .mouseMoved, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0)!
@@ -150,7 +162,28 @@ enum NativeWorkflowChecks {
       let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)!
       if let table = fileView as? FileTableView { let rename = table.renameSelection, open = table.openSelection; table.renameSelection = { renamed = true }; table.openSelection = { opened = true }; table.keyDown(with: key); table.renameSelection = rename; table.openSelection = open }
       if let collection = fileView as? FileCollectionView { let rename = collection.renameSelection, open = collection.openSelection; collection.renameSelection = { renamed = true }; collection.openSelection = { opened = true }; collection.keyDown(with: key); collection.renameSelection = rename; collection.openSelection = open }
-      try check(renamed && !opened, "Return retains the existing rename action")
+      try check(!renamed && opened, "Return executes the open action")
+    }
+    browser.setView(.icons, size: 64); browser.setGrouping(.none); window.contentView?.layoutSubtreeIfNeeded()
+    let iconsClip = browser.collectionScroll.contentView
+    iconsClip.scroll(to: .zero); browser.collectionScroll.reflectScrolledClipView(iconsClip); browser.collection.layoutSubtreeIfNeeded()
+    if let rowTwoIndex = browser.displayRows.indices.first(where: { index in
+      guard browser.entryIndex(at: index) != nil, let rect = browser.collectionLayout.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { return false }
+      return rect.minY > 100 && browser.collection.visibleRect.contains(rect)
+    }), let entryIndex = browser.entryIndex(at: rowTwoIndex) {
+      let path = IndexPath(item: rowTwoIndex, section: 0)
+      browser.selectedPaths = [browser.entries[entryIndex].id]
+      browser.collection.selectionIndexPaths = [path]
+      let scrollBeforeRename = iconsClip.bounds.origin
+      browser.executeAction("rename")
+      browser.collection.layoutSubtreeIfNeeded()
+      let item = browser.collection.item(at: path) as? IconItem
+      try check(item?.nameLabel.currentEditor() != nil && abs(iconsClip.bounds.origin.y - scrollBeforeRename.y) < 0.5, "Renaming a visible row-2 icon keeps its vertical scroll position")
+      if let field = item?.nameLabel, let editor = field.currentEditor() as? NSTextView {
+        _ = browser.control(field, textView: editor, doCommandBy: #selector(NSResponder.cancelOperation(_:)))
+      }
+    } else {
+      throw NativeSmoke.Failure(description: "Missing visible row-2 item for icon rename check")
     }
     let filenameFixtures = ["数字员工平台需求说明.docx", "Codex 实施文档与数字员工平台系统运行流程和配置说明（修订版）.md", String(repeating: "LongFileName", count: 6) + ".txt"]
     for name in filenameFixtures { try Data("filename fixture".utf8).write(to: folder.appendingPathComponent(name)) }
@@ -197,7 +230,49 @@ enum NativeWorkflowChecks {
     }
     browser.collection.deselectAll(nil); browser.collection.layoutSubtreeIfNeeded()
     try check(!browser.collection.subviews.contains { $0 is NativeExpandedNameView }, "Deselecting collapses the complete filename")
+    browser.collection.deselectAll(nil); browser.selectedPaths = []
+    let keyC = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "c", charactersIgnoringModifiers: "c", isARepeat: false, keyCode: 8)!
+    let keyL2 = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "l", charactersIgnoringModifiers: "l", isARepeat: false, keyCode: 37)!
+    _ = browser.handleKey(keyC)
+    try check(browser.selectedPaths.count == 1 && browser.selectedEntries().first?.name.hasPrefix("Codex") == true, "Icons view: typing 'c' selects the 'Codex' item")
+    _ = browser.handleKey(keyL2)
+    try check(browser.selectedPaths.count == 1 && browser.selectedEntries().first?.name.hasPrefix("LongFileName") == true, "Icons view: typing 'l' selects the 'LongFileName' item")
     browser.closeTab(); try await until { !browser.loading && browser.directory.path == root.path }
+    browser.setView(.icons, size: 64); browser.collection.deselectAll(nil); browser.selectedPaths = []
+    _ = browser.handleKey(keyF)
+    try check(browser.selectedPaths.count == 1, "Icons view at root: typing 'f' selects matching item")
+    let firstIconSelected = browser.selectedPaths.first!
+    _ = browser.handleKey(keyF)
+    try check(browser.selectedPaths.count == 1 && browser.selectedPaths.first != firstIconSelected, "Icons view at root: pressing 'f' again cycles to the next matching item")
+    let keyRight = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: 124)!
+    let keyDownArrow = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: 125)!
+    let keyLeft = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: 123)!
+    let keyUpArrow = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: 126)!
+    let beforeNav = browser.selectedPaths.first!
+    _ = browser.handleKey(keyRight)
+    try check(browser.selectedPaths.count == 1 && browser.selectedPaths.first != beforeNav, "Arrow navigation right selects next icon")
+    let beforeDown = browser.selectedPaths.first!
+    _ = browser.handleKey(keyDownArrow)
+    try check(browser.selectedPaths.count == 1 && browser.selectedPaths.first != beforeDown, "Arrow navigation down moves to the next grid row")
+    _ = browser.handleKey(keyUpArrow)
+    _ = browser.handleKey(keyLeft)
+    try check(NativeTerminal.isTerminalAlias("cmd") && NativeTerminal.isTerminalAlias("CMD"), "Terminal alias recognizes 'cmd'")
+    try check(NativeTerminal.extractCommand(from: "git clone https://example.com/repo.git", currentDirectory: root, home: root) == "git clone https://example.com/repo.git", "Extracts git commands")
+    try check(NativeTerminal.extractCommand(from: "cmd npm install", currentDirectory: root, home: root) == "npm install", "Extracts prefixed cmd commands")
+    try check(NativeTerminal.extractCommand(from: "Folder", currentDirectory: root, home: root) == nil, "Existing folder is not treated as shell command")
+    let deepFolder = root.appendingPathComponent("VeryLongSubfolderOne/VeryLongSubfolderTwo/DeepCurrentFolder")
+    try fm.createDirectory(at: deepFolder, withIntermediateDirectories: true)
+    let testAddressBar = ExplorerAddressBar(frame: NSRect(x: 0, y: 0, width: 300, height: 35))
+    testAddressBar.homeDirectory = root
+    testAddressBar.setDirectory(deepFolder)
+    testAddressBar.layoutSubtreeIfNeeded()
+    let crumbBtns = descendants(testAddressBar).compactMap { $0 as? ExplorerButton }
+    let chevrons = crumbBtns.filter { $0.iconName == "chevronRight" }
+    let titles = crumbBtns.map(\.title).filter { !$0.isEmpty }
+    try check(!chevrons.isEmpty && !titles.isEmpty && chevrons.allSatisfy { abs($0.frame.midY - crumbBtns.first!.frame.midY) < 0.5 }, "Address bar chevrons align vertically with breadcrumb labels")
+    try check(titles.first == "..." && titles.last == "DeepCurrentFolder", "Narrow address bar collapses leading folders into ellipsis and prioritizes trailing folders")
+    testAddressBar.beginEditing()
+    try check(testAddressBar.editing && testAddressBar.field.stringValue == deepFolder.path, "Editing the address bar displays the full path")
     let sources = Array(browser.entries.filter { !$0.isDirectory }.prefix(2)).map(\.url)
     let form = EDBatchRenameForm(sources: sources)
     form.frame = NSRect(x: 0, y: 0, width: 720, height: 700)

@@ -29,9 +29,18 @@ enum NativeAddressPath {
   }
 }
 
+final class ExplorerCrumbsView: NSView {
+  var onEmptyClick: (() -> Void)?
+  override var isFlipped: Bool { true }
+  override func mouseDown(with event: NSEvent) {
+    let point = convert(event.locationInWindow, from: nil)
+    if hitTest(point) === self { onEmptyClick?() } else { super.mouseDown(with: event) }
+  }
+}
+
 final class ExplorerAddressBar: NSView, NSTextFieldDelegate {
   let field = ExplorerTextField()
-  private let crumbs = NSView()
+  private let crumbs = ExplorerCrumbsView()
   private var url = FileManager.default.homeDirectoryForCurrentUser
   private(set) var editing = false
   var onNavigate: ((URL) -> Void)?
@@ -60,6 +69,7 @@ final class ExplorerAddressBar: NSView, NSTextFieldDelegate {
     field.target = self; field.action = #selector(submit); field.delegate = self
     field.setAccessibilityLabel(NL("文件夹地址"))
     crumbs.wantsLayer = true; crumbs.layer?.masksToBounds = true
+    crumbs.onEmptyClick = { [weak self] in self?.beginEditing() }
     addSubview(crumbs); addSubview(field); field.isHidden = true
     pointerMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in self?.crumbRequest += 1; return event }
   }
@@ -137,25 +147,116 @@ final class ExplorerAddressBar: NSView, NSTextFieldDelegate {
   }
   private func rebuild() {
     crumbs.subviews.forEach { $0.removeFromSuperview() }
+    let barHeight = crumbs.bounds.height > 0 ? crumbs.bounds.height : bounds.height
+    guard barHeight > 0 else { return }
     if let virtualTitle {
-      let item = ExplorerButton(title: virtualTitle) { [weak self] in self?.beginEditing() }; item.frame = NSRect(x: 0, y: 0, width: max(100, item.intrinsicContentSize.width), height: crumbs.bounds.height); crumbs.addSubview(item); return
+      let item = ExplorerButton(title: virtualTitle) { [weak self] in self?.beginEditing() }
+      item.frame = NSRect(x: 0, y: 0, width: max(100, item.intrinsicContentSize.width), height: barHeight)
+      crumbs.addSubview(item)
+      return
     }
     var urls = [URL(fileURLWithPath: "/")]
     for part in url.pathComponents.dropFirst() { urls.append(urls.last!.appendingPathComponent(part)) }
-    let root = ExplorerButton(icon: "chevronRight")
-    root.onPress = { [weak self, weak root] in self?.showFolders(nil, anchor: root) }; root.setAccessibilityLabel(NL("{0} 的子文件夹", NL("此电脑")))
-    root.iconDimension = 13; root.frame = NSRect(x: 0, y: 0, width: 18, height: crumbs.bounds.height); crumbs.addSubview(root)
-    var x: CGFloat = 18
+
+    struct CrumbModel {
+      let target: URL
+      let name: String
+      let itemWidth: CGFloat
+      let totalWidth: CGFloat
+    }
+
+    let arrowWidth: CGFloat = 16
+    let rootWidth: CGFloat = 16
+    let moreWidth: CGFloat = 28
+    let moreBlockWidth: CGFloat = moreWidth + arrowWidth
+
+    var crumbModels: [CrumbModel] = []
     for target in urls {
       let name = pathLabel(target)
-      let item = ExplorerButton(title: name) { [weak self] in guard let self else { return }; if target == self.url { self.beginEditing() } else { self.onNavigate?(target) } }
-      item.onContextMenu = { [weak self] in self?.addressMenu(target, event: $0) }; item.toolTip = target == url ? NL("单击编辑路径") : target.path
+      let textWidth = ceil((name as NSString).size(withAttributes: [.font: ExplorerTypography.font()]).width)
+      let itemWidth = textWidth + 16
+      crumbModels.append(CrumbModel(target: target, name: name, itemWidth: itemWidth, totalWidth: itemWidth + arrowWidth))
+    }
+
+    let availableWidth = crumbs.bounds.width > 0 ? crumbs.bounds.width : max(0, bounds.width - 42)
+    let totalAllWidth = rootWidth + crumbModels.map(\.totalWidth).reduce(0, +)
+
+    var visibleStartIndex = 0
+    if availableWidth > 0 && totalAllWidth > availableWidth && crumbModels.count > 1 {
+      let budget = max(crumbModels.last?.totalWidth ?? 40, availableWidth - rootWidth - moreBlockWidth)
+      var accumulated = crumbModels[crumbModels.count - 1].totalWidth
+      visibleStartIndex = crumbModels.count - 1
+      for index in stride(from: crumbModels.count - 2, through: 0, by: -1) {
+        if accumulated + crumbModels[index].totalWidth <= budget {
+          accumulated += crumbModels[index].totalWidth
+          visibleStartIndex = index
+        } else {
+          break
+        }
+      }
+    }
+
+    let root = ExplorerButton(icon: "chevronRight")
+    root.onPress = { [weak self, weak root] in self?.showFolders(nil, anchor: root) }
+    root.setAccessibilityLabel(NL("{0} 的子文件夹", NL("此电脑")))
+    root.iconDimension = 11; root.iconColor = ExplorerPalette.secondary
+    root.frame = NSRect(x: 0, y: 0, width: rootWidth, height: barHeight)
+    crumbs.addSubview(root)
+
+    var x = rootWidth
+    if visibleStartIndex > 0 {
+      let hiddenModels = Array(crumbModels[0..<visibleStartIndex])
+      let moreButton = ExplorerButton(title: "...")
+      moreButton.toolTip = NL("更多")
+      moreButton.horizontalPadding = 4
+      moreButton.frame = NSRect(x: x, y: 0, width: moreWidth, height: barHeight)
+      moreButton.onPress = { [weak self, weak moreButton] in
+        guard let self, let moreButton else { return }
+        let menuItems = hiddenModels.map { model in
+          ExplorerMenuItem(title: model.name, icon: "folder", action: { [weak self] in
+            self?.onNavigate?(model.target)
+          })
+        }
+        ExplorerMenu.present(menuItems, below: moreButton)
+      }
+      crumbs.addSubview(moreButton)
+      x += moreWidth
+
+      let moreArrow = ExplorerButton(icon: "chevronRight")
+      moreArrow.iconDimension = 11; moreArrow.iconColor = ExplorerPalette.secondary
+      if let lastHidden = hiddenModels.last {
+        moreArrow.setAccessibilityLabel(NL("{0} 的子文件夹", lastHidden.name))
+        moreArrow.onPress = { [weak self, weak moreArrow] in self?.showFolders(lastHidden.target, anchor: moreArrow) }
+      }
+      moreArrow.frame = NSRect(x: x, y: 0, width: arrowWidth, height: barHeight)
+      crumbs.addSubview(moreArrow)
+      x += arrowWidth
+    }
+
+    for model in crumbModels[visibleStartIndex...] {
+      let target = model.target
+      let item = ExplorerButton(title: model.name) { [weak self] in
+        guard let self else { return }
+        if target == self.url { self.beginEditing() } else { self.onNavigate?(target) }
+      }
+      item.onContextMenu = { [weak self] in self?.addressMenu(target, event: $0) }
+      item.toolTip = target == url ? NL("单击编辑路径") : target.path
       item.onFileDragValidate = { [weak self] info in self?.onFileDragValidate?(info, target) ?? [] }
       item.onFileDrop = { [weak self] info in self?.onFileDrop?(info, target) ?? false }
-      let width = (name as NSString).size(withAttributes: [.font: ExplorerTypography.font()]).width + 16
-      item.horizontalPadding = 8; item.frame = NSRect(x: x, y: 0, width: width, height: crumbs.bounds.height); crumbs.addSubview(item); x += width
-      let arrow = ExplorerButton(icon: "chevronRight"); arrow.iconDimension = 13; arrow.setAccessibilityLabel(NL("{0} 的子文件夹", name)); arrow.frame = NSRect(x: x, y: 0, width: 18, height: 27)
-      arrow.onPress = { [weak self, weak arrow] in self?.showFolders(target, anchor: arrow) }; crumbs.addSubview(arrow); x += 18
+      item.horizontalPadding = 8
+      let maxItemWidth = availableWidth > 0 ? max(30, availableWidth - x - arrowWidth) : model.itemWidth
+      let width = min(model.itemWidth, maxItemWidth)
+      item.frame = NSRect(x: x, y: 0, width: width, height: barHeight)
+      crumbs.addSubview(item)
+      x += width
+
+      let arrow = ExplorerButton(icon: "chevronRight")
+      arrow.iconDimension = 11; arrow.iconColor = ExplorerPalette.secondary
+      arrow.setAccessibilityLabel(NL("{0} 的子文件夹", model.name))
+      arrow.frame = NSRect(x: x, y: 0, width: arrowWidth, height: barHeight)
+      arrow.onPress = { [weak self, weak arrow] in self?.showFolders(target, anchor: arrow) }
+      crumbs.addSubview(arrow)
+      x += arrowWidth
     }
   }
   private func addressMenu(_ directory: URL, event: NSEvent) {

@@ -83,6 +83,17 @@ enum NativeAddressTabChecks {
     try check(descendants(bar).compactMap { $0 as? ExplorerButton }.contains { $0.title == "Applications" }, "Nested Applications folders retain their real path label")
     bar.setDirectory(apps); bar.layoutSubtreeIfNeeded()
     try check(descendants(bar).compactMap { $0 as? ExplorerButton }.contains { $0.title == NL("应用程序") }, "Home Applications has the standard localized label")
+    let crumbButtons = descendants(bar).compactMap { $0 as? ExplorerButton }
+    let chevrons = crumbButtons.filter { $0.iconName == "chevronRight" }
+    let namedCrumbs = crumbButtons.filter { !$0.title.isEmpty }
+    try check(!chevrons.isEmpty && !namedCrumbs.isEmpty && chevrons.allSatisfy { abs($0.frame.midY - namedCrumbs[0].frame.midY) < 0.5 }, "Address bar chevrons align vertically with breadcrumb labels")
+    let deepFolder = docs.appendingPathComponent("VeryLongSubfolderNameOne/VeryLongSubfolderNameTwo/CurrentTargetFolder")
+    try fm.createDirectory(at: deepFolder, withIntermediateDirectories: true)
+    let narrowBar = ExplorerAddressBar(frame: NSRect(x: 24, y: 120, width: 320, height: 35)); surface.addSubview(narrowBar); narrowBar.homeDirectory = root; narrowBar.setDirectory(deepFolder); narrowBar.layoutSubtreeIfNeeded()
+    let narrowTitles = descendants(narrowBar).compactMap { $0 as? ExplorerButton }.map(\.title).filter { !$0.isEmpty }
+    try check(narrowTitles.first == "..." && narrowTitles.last == "CurrentTargetFolder", "Narrow address bar collapses leading folders into ellipsis and prioritizes trailing folders")
+    narrowBar.beginEditing()
+    try check(narrowBar.editing && narrowBar.field.stringValue == deepFolder.path, "Editing the address bar displays the full path")
 
     var selected = 0, dropped = 0
     let tab = ExplorerTabView(title: "fixture", active: false, onSelect: { selected += 1 }, onClose: {})
