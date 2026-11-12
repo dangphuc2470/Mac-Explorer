@@ -61,6 +61,7 @@ enum NativeExternalOpenChecks {
     browser.navigate(to: child); try await loaded(child)
     delegate.application(NSApp, open: [target]); try await loaded(root)
     try check(browser.selectedPaths == [target.path] && visible(target) && !visible(child), "External reveal from a child folder overrides the parent-navigation scroll target")
+    try check(browser.tabs.count >= 2 && browser.tabs.contains { $0.directory.path == child.path }, "External reveal from another folder opens in a new tab without losing the previous tab")
     browser.setView(.icons, size: 64)
     delegate.application(NSApp, open: [root.appendingPathComponent("File 000.txt")]); try await loaded(root)
     try check(!visible(target), "Icon view target also starts outside its viewport")

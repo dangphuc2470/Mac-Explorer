@@ -233,7 +233,21 @@ final class ExplorerHeaderCell: NSTableHeaderCell {
 }
 final class FileRowView: NSTableRowView {
   override var isSelected: Bool { didSet { for column in 0..<numberOfColumns { (view(atColumn: column) as? NameCell)?.checkbox.state = isSelected ? .on : .off } } }
-  var hovered = false { didSet { for column in 0..<numberOfColumns { (view(atColumn: column) as? NameCell)?.checkbox.hovered = hovered }; needsDisplay = true } }
+  var hovered = false {
+    didSet {
+      guard hovered != oldValue else { return }
+      if hovered, let table = superview as? FileTableView {
+        let visible = table.rows(in: table.visibleRect)
+        for r in visible.location..<NSMaxRange(visible) {
+          if let rowView = table.rowView(atRow: r, makeIfNecessary: false) as? FileRowView, rowView !== self, rowView.hovered {
+            rowView.hovered = false
+          }
+        }
+      }
+      for column in 0..<numberOfColumns { (view(atColumn: column) as? NameCell)?.checkbox.hovered = hovered }
+      needsDisplay = true
+    }
+  }
   override func updateTrackingAreas() {
     super.updateTrackingAreas(); trackingAreas.forEach(removeTrackingArea)
     addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow], owner: self))
@@ -262,20 +276,66 @@ final class FileTableView: NSTableView {
   private var marquee: NativeMarqueeSelection?
   private var selectionCursor: Int?
   private var selectionAnchor: Int?
+  private var resignKeyObserver: NSObjectProtocol?
   func setSelectionCursor(_ index: Int?) { selectionCursor = index; selectionAnchor = index }
   func cancelMarqueeSelection() { marquee?.end(cancelled: false); marquee = nil }
+  func clearAllHover() {
+    let visible = rows(in: visibleRect)
+    for r in visible.location..<NSMaxRange(visible) {
+      if let rowView = rowView(atRow: r, makeIfNecessary: false) as? FileRowView, rowView.hovered {
+        rowView.hovered = false
+      }
+    }
+  }
+  func updateHoverForCurrentPointer() {
+    guard let window, window.isKeyWindow, marquee == nil else { clearAllHover(); return }
+    let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+    let hoveredRow = visibleRect.contains(point) ? row(at: point) : -1
+    let visible = rows(in: visibleRect)
+    for r in visible.location..<NSMaxRange(visible) {
+      if let rowView = rowView(atRow: r, makeIfNecessary: false) as? FileRowView {
+        let isTarget = (r == hoveredRow)
+        if rowView.hovered != isTarget { rowView.hovered = isTarget }
+      }
+    }
+  }
   override func reloadData() { cancelMarqueeSelection(); selectionCursor = nil; selectionAnchor = nil; super.reloadData() }
-  override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); if window == nil { cancelMarqueeSelection() } }
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas(); trackingAreas.forEach(removeTrackingArea)
+    addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow], owner: self))
+  }
+  override func mouseMoved(with event: NSEvent) {
+    super.mouseMoved(with: event)
+    guard marquee == nil else { return }
+    updateHoverForCurrentPointer()
+  }
+  override func mouseExited(with event: NSEvent) {
+    super.mouseExited(with: event)
+    clearAllHover()
+  }
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if let resignKeyObserver { NotificationCenter.default.removeObserver(resignKeyObserver); self.resignKeyObserver = nil }
+    if let window {
+      resignKeyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: window, queue: .main) { [weak self] _ in
+        self?.clearAllHover()
+      }
+    } else {
+      cancelMarqueeSelection(); clearAllHover()
+    }
+  }
+  deinit { if let resignKeyObserver { NotificationCenter.default.removeObserver(resignKeyObserver) } }
   override func mouseDown(with event: NSEvent) {
     guard NativeSelection.canHandle(self) else { super.mouseDown(with: event); return }
     let point = convert(event.locationInWindow, from: nil), clicked = row(at: point)
     if clicked >= 0 && !isFileRow(clicked) { onGroupClick?(clicked); return }
     if clicked < 0, visibleRect.contains(point) {
+      clearAllHover()
       window?.makeFirstResponder(self)
       let previousAnchor = selectionAnchor
       if event.modifierFlags.intersection([.command, .control, .shift]).isEmpty { selectionAnchor = nil }
       let frames = (0..<numberOfRows).filter(isFileRow).map { ($0, rect(ofRow: $0)) }
-      marquee = NativeMarqueeSelection(host: self, event: event, original: Set(selectedRowIndexes), targets: frames, apply: { [weak self] selection in guard let self, self.selectedRowIndexes != IndexSet(selection) else { return }; self.selectRowIndexes(IndexSet(selection), byExtendingSelection: false) }, finished: { [weak self] in if self?.marquee?.wasCancelled == true { self?.selectionAnchor = previousAnchor }; self?.marquee = nil })
+      marquee = NativeMarqueeSelection(host: self, event: event, original: Set(selectedRowIndexes), targets: frames, apply: { [weak self] selection in guard let self, self.selectedRowIndexes != IndexSet(selection) else { return }; self.selectRowIndexes(IndexSet(selection), byExtendingSelection: false) }, finished: { [weak self] in if self?.marquee?.wasCancelled == true { self?.selectionAnchor = previousAnchor }; self?.marquee = nil; self?.updateHoverForCurrentPointer() })
       marquee?.begin(); return
     }
     let original = Set(selectedRowIndexes), anchor = selectionAnchor
@@ -323,12 +383,52 @@ final class FileCollectionView: NSCollectionView {
   private var marquee: NativeMarqueeSelection?
   private var selectionCursor: Int?
   private var selectionAnchor: Int?
+  private var resignKeyObserver: NSObjectProtocol?
   private(set) var isMarqueeSelecting = false
   func setSelectionCursor(_ index: Int?) { selectionCursor = index; selectionAnchor = index }
   func clearExpandedNames() { subviews.compactMap { $0 as? NativeExpandedNameView }.forEach { $0.removeFromSuperview() } }
   func cancelMarqueeSelection() { marquee?.end(cancelled: false); marquee = nil }
+  func clearAllHover() {
+    for item in visibleItems() {
+      if let surface = item.view as? ItemSurface, surface.hovered { surface.hovered = false }
+    }
+  }
+  func updateHoverForCurrentPointer() {
+    guard let window, window.isKeyWindow, !isMarqueeSelecting else { clearAllHover(); return }
+    let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+    let hoveredPath = visibleRect.contains(point) ? indexPathForItem(at: point) : nil
+    for item in visibleItems() {
+      guard let surface = item.view as? ItemSurface else { continue }
+      let isTarget = (hoveredPath != nil && indexPath(for: item) == hoveredPath)
+      if surface.hovered != isTarget { surface.hovered = isTarget }
+    }
+  }
   override func reloadData() { cancelMarqueeSelection(); clearExpandedNames(); selectionCursor = nil; selectionAnchor = nil; super.reloadData() }
-  override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); if window == nil { cancelMarqueeSelection(); clearExpandedNames() } }
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas(); trackingAreas.forEach(removeTrackingArea)
+    addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow], owner: self))
+  }
+  override func mouseMoved(with event: NSEvent) {
+    super.mouseMoved(with: event)
+    guard !isMarqueeSelecting else { return }
+    updateHoverForCurrentPointer()
+  }
+  override func mouseExited(with event: NSEvent) {
+    super.mouseExited(with: event)
+    clearAllHover()
+  }
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if let resignKeyObserver { NotificationCenter.default.removeObserver(resignKeyObserver); self.resignKeyObserver = nil }
+    if let window {
+      resignKeyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: window, queue: .main) { [weak self] _ in
+        self?.clearAllHover()
+      }
+    } else {
+      cancelMarqueeSelection(); clearExpandedNames(); clearAllHover()
+    }
+  }
+  deinit { if let resignKeyObserver { NotificationCenter.default.removeObserver(resignKeyObserver) } }
   private func applySelection(_ indexes: Set<Int>) {
     let previous = selectionIndexPaths, next = Set(indexes.filter(isFileRow).map { IndexPath(item: $0, section: 0) })
     guard previous != next else { return }; selectionIndexPaths = next
@@ -400,12 +500,13 @@ final class FileCollectionView: NSCollectionView {
     let point = convert(event.locationInWindow, from: nil), clicked = indexPathForItem(at: point)
     if let clicked, !isFileRow(clicked.item) { onGroupClick?(clicked.item); return }
     if clicked == nil, visibleRect.contains(point) {
+      clearAllHover()
       window?.makeFirstResponder(self); isMarqueeSelecting = true; refreshExpandedNames()
       let previousAnchor = selectionAnchor
       if event.modifierFlags.intersection([.command, .control, .shift]).isEmpty { selectionAnchor = nil }
       let count = numberOfSections > 0 ? numberOfItems(inSection: 0) : 0
       let frames = (0..<count).compactMap { index -> (Int, NSRect)? in guard isFileRow(index), let rect = collectionViewLayout?.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame else { return nil }; return (index, rect) }
-      marquee = NativeMarqueeSelection(host: self, event: event, original: Set(selectionIndexPaths.map(\.item)), targets: frames, apply: { [weak self] in self?.applySelection($0) }, finished: { [weak self] in if self?.marquee?.wasCancelled == true { self?.selectionAnchor = previousAnchor }; self?.marquee = nil; self?.isMarqueeSelecting = false; self?.refreshExpandedNames() })
+      marquee = NativeMarqueeSelection(host: self, event: event, original: Set(selectionIndexPaths.map(\.item)), targets: frames, apply: { [weak self] in self?.applySelection($0) }, finished: { [weak self] in if self?.marquee?.wasCancelled == true { self?.selectionAnchor = previousAnchor }; self?.marquee = nil; self?.isMarqueeSelecting = false; self?.refreshExpandedNames(); self?.updateHoverForCurrentPointer() })
       marquee?.begin(); return
     }
     let original = Set(selectionIndexPaths.map(\.item)), anchor = selectionAnchor
@@ -535,10 +636,32 @@ final class ExplorerCollectionLayout: NSCollectionViewLayout {
   }
 }
 final class ItemSurface: SurfaceView {
-  var selected = false { didSet { if !selected { clearExpandedName() }; needsDisplay = true; needsLayout = true } }; var hovered = false { didSet { subviews.compactMap { $0 as? ExplorerCheckbox }.forEach { $0.hovered = hovered }; needsDisplay = true } }
+  var selected = false { didSet { if !selected { clearExpandedName() }; needsDisplay = true; needsLayout = true } }
+  var hovered = false {
+    didSet {
+      guard hovered != oldValue else { return }
+      if hovered, let collection = enclosingCollectionView {
+        for item in collection.visibleItems() {
+          if let surface = item.view as? ItemSurface, surface !== self, surface.hovered {
+            surface.hovered = false
+          }
+        }
+      }
+      subviews.compactMap { $0 as? ExplorerCheckbox }.forEach { $0.hovered = hovered }
+      needsDisplay = true
+    }
+  }
   var bottomLine = false
   private var expandedName: NativeExpandedNameView?
   private var scrollObserver: NSObjectProtocol?
+  private var enclosingCollectionView: FileCollectionView? {
+    var ancestor = superview
+    while let current = ancestor {
+      if let collection = current as? FileCollectionView { return collection }
+      ancestor = current.superview
+    }
+    return nil
+  }
   func clearExpandedName() { expandedName?.removeFromSuperview(); expandedName = nil }
   override func viewWillMove(toSuperview newSuperview: NSView?) { super.viewWillMove(toSuperview: newSuperview); if newSuperview == nil { clearExpandedName() } }
   override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); hovered = explorerPointerIsInside(self); if window == nil { clearExpandedName(); if let scrollObserver { NotificationCenter.default.removeObserver(scrollObserver) }; scrollObserver = nil } }
@@ -564,7 +687,10 @@ final class ItemSurface: SurfaceView {
     collection.addSubview(overlay); expandedName = overlay
   }
   override func updateTrackingAreas() { super.updateTrackingAreas(); trackingAreas.forEach(removeTrackingArea); addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow], owner: self)); hovered = explorerPointerIsInside(self) }
-  override func mouseEntered(with event: NSEvent) { hovered = explorerPointerIsInside(self) }
+  override func mouseEntered(with event: NSEvent) {
+    if let collection = enclosingCollectionView, collection.isMarqueeSelecting { hovered = false; return }
+    hovered = explorerPointerIsInside(self)
+  }
   override func mouseExited(with event: NSEvent) { hovered = explorerPointerIsInside(self) }
   override func draw(_ dirtyRect: NSRect) {
     ExplorerPalette.surface.setFill(); bounds.fill()

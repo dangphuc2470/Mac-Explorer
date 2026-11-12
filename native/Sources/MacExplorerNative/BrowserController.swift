@@ -672,7 +672,7 @@ final class BrowserController: NSViewController, NSMenuItemValidation, NSTableVi
     }
   }
 
-  private func sameLocation(_ left: URL, _ right: URL) -> Bool {
+  func sameLocation(_ left: URL, _ right: URL) -> Bool {
     left.isFileURL && right.isFileURL ? left.standardizedFileURL.path == right.standardizedFileURL.path : left == right
   }
   private var locationLayout: String { "\(mode.rawValue):\(Int(iconSize)):\(compact):\(groupMode.rawValue):\(appliedFontSize)" }
@@ -2260,6 +2260,12 @@ extension BrowserController {
       else { groups.append(ExternalOpenGroup(directory: parent, selection: [url])) }
     }
     return (groups, unavailable)
+  }
+  func openExternalGroup(_ group: ExternalOpenGroup) {
+    if !sameLocation(directory, group.directory) {
+      openTab(at: group.directory)
+    }
+    openExternal(group)
   }
   func openExternal(_ group: ExternalOpenGroup) {
     navigate(to: group.directory)

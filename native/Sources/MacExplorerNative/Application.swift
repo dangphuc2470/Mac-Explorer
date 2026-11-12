@@ -95,7 +95,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuItemVali
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
     if (quitFixture != nil || smoke == nil && comparison == nil) && argument("--path") == nil && pendingExternalURLs.isEmpty { restoreWindows(defaults: defaults) }
-    if !pendingExternalURLs.isEmpty { let urls = pendingExternalURLs; pendingExternalURLs = []; openExternal(urls) }
+    if !pendingExternalURLs.isEmpty { let urls = pendingExternalURLs; pendingExternalURLs = []; openExternal(urls, replaceInitialTab: true) }
     if smoke == nil && comparison == nil { DispatchQueue.main.async { [weak self] in self?.offerFileViewer() } }
     if let comparison, let report = argument("--report") {
       Task { @MainActor in
@@ -210,17 +210,21 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuItemVali
 
   func application(_ application: NSApplication, open urls: [URL]) {
     if browser == nil && sessionDefaults == nil { pendingExternalURLs += urls; return }
-    if browser == nil { newWindow() }
+    if browser == nil { newWindow(); openExternal(urls, replaceInitialTab: true); return }
     openExternal(urls)
   }
   func application(_ sender: NSApplication, openFiles filenames: [String]) {
     application(sender, open: filenames.map { URL(fileURLWithPath: $0) }); sender.reply(toOpenOrPrint: .success)
   }
-  private func openExternal(_ urls: [URL]) {
+  private func openExternal(_ urls: [URL], replaceInitialTab: Bool = false) {
     let (groups, unavailable) = BrowserController.externalGroups(urls)
     useExternalWindow()
-    if let first = groups.first { browser.openExternal(first) }
-    for group in groups.dropFirst() { browser.openTab(at: group.directory); browser.openExternal(group) }
+    if replaceInitialTab, let first = groups.first {
+      browser.openExternal(first)
+      for group in groups.dropFirst() { browser.openTab(at: group.directory); browser.openExternal(group) }
+    } else {
+      for group in groups { browser.openExternalGroup(group) }
+    }
     if unavailable > 0 { browser.reportUnavailableExternalItems() }
     summon()
   }

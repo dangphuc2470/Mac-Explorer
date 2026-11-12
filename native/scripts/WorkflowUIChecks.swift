@@ -145,6 +145,14 @@ enum NativeWorkflowChecks {
       surfaces.forEach { $0.updateTrackingAreas() }
       try check(!surfaces.contains(where: \.hovered), "\(mode): leaving the file area clears every hover background")
     }
+    if let firstSur = browser.collection.visibleItems().compactMap({ $0.view as? ItemSurface }).first,
+       let lastSur = browser.collection.visibleItems().compactMap({ $0.view as? ItemSurface }).last, firstSur !== lastSur {
+      firstSur.hovered = true
+      lastSur.hovered = true
+      try check(!firstSur.hovered && lastSur.hovered, "Single-hover invariant clears previous hover when another item is hovered")
+      browser.collection.clearAllHover()
+      try check(!browser.collection.visibleItems().compactMap({ $0.view as? ItemSurface }).contains(where: \.hovered), "Clicking outside clears every hovered item")
+    }
     window.pointerIsActive = false
     try check(browser.selectedPaths == hoverSelection, "Scrolling and hover tracking preserve the selected files")
     browser.setView(.details)
